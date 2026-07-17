@@ -80,11 +80,12 @@ runs:
         fi
         echo "Using licensing client: $licensing_client"
 
-        timeout 120 "$licensing_client" \
+        perl -e 'alarm shift; exec @ARGV' 120 \
+          "$licensing_client" \
           --activate-all \
           --username "$UNITY_EMAIL" \
           --password "$UNITY_PASSWORD" \
           --include-personal \
           </dev/null
 
-        timeout 30 "$licensing_client" --showEntitlements </dev/null
+        perl -e 'alarm shift; exec @ARGV' 30 "$licensing_client" --showEntitlements </dev/null
