@@ -73,10 +73,10 @@ runs:
         UNITY_EMAIL: ${{ inputs.username }}
         UNITY_PASSWORD: ${{ inputs.password }}
       run: |
-        editor_app_root="${{ inputs.editor-path }}/../../.."
+        editor_app_root=$(dirname "$(dirname "$(dirname "${{ inputs.editor-path }}")")")
         licensing_client=$(find "$editor_app_root" "$HOME/Library/Application Support/UnityHub" /Applications/"Unity Hub.app" -type f -name "Unity.Licensing.Client" 2>/dev/null | head -1)
         if [ -z "$licensing_client" ]; then
-          echo "Could not find the Unity.Licensing.Client executable" >&2
+          echo "Could not find the Unity.Licensing.Client executable under $editor_app_root" >&2
           exit 1
         fi
         echo "Using licensing client: $licensing_client"
