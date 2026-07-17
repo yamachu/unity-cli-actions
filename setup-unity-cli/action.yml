@@ -1,0 +1,73 @@
+name: Setup Unity CLI
+description: >
+  Installs the official Unity CLI (https://docs.unity.com/en-us/unity-cli),
+  uses it to install the requested Unity Editor version, and locates the
+  resulting Unity executable.
+
+inputs:
+  unity-version:
+    description: "Unity version to install (e.g. lts, 6000.3.20f1)"
+    required: false
+    default: "lts"
+  cli-version:
+    description: "Unity CLI version to install (default: latest from manifest)"
+    required: false
+    default: ""
+  cli-channel:
+    description: "Unity CLI release channel: alpha, beta, or empty for stable"
+    required: false
+    default: "beta"
+
+outputs:
+  editor-path:
+    description: "Absolute path to the installed Unity executable"
+    value: ${{ steps.locate.outputs.path }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install Unity CLI (Linux/macOS)
+      if: runner.os != 'Windows'
+      shell: bash
+      env:
+        UNITY_CLI_VERSION: ${{ inputs.cli-version }}
+        UNITY_CLI_CHANNEL: ${{ inputs.cli-channel }}
+      run: curl -fsSL https://public-cdn.cloud.unity3d.com/hub/prod/cli/install.sh | bash
+
+    - name: Install Unity CLI (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        UNITY_CLI_CHANNEL: ${{ inputs.cli-channel }}
+      run: |
+        $target = "${{ inputs.cli-version }}"
+        if (-not $target) { $target = "latest" }
+        $installer = Invoke-RestMethod https://public-cdn.cloud.unity3d.com/hub/prod/cli/install.ps1
+        & ([scriptblock]::Create($installer)) -Target $target
+
+    - name: Install Unity Editor
+      shell: bash
+      run: |
+        if [ "$RUNNER_OS" = "Windows" ]; then
+          export PATH="$(cygpath "$LOCALAPPDATA")/Unity/bin:$PATH"
+        else
+          export PATH="$HOME/.unity/bin:$PATH"
+        fi
+        unity install "${{ inputs.unity-version }}" -y --accept-eula --non-interactive
+
+    - name: Locate installed Unity executable
+      id: locate
+      shell: bash
+      run: |
+        if [ "$RUNNER_OS" = "Windows" ]; then
+          export PATH="$(cygpath "$LOCALAPPDATA")/Unity/bin:$PATH"
+        else
+          export PATH="$HOME/.unity/bin:$PATH"
+        fi
+        install_root=$(unity install-path)
+        editor_path=$(find "$install_root" -maxdepth 3 -type f -name "Unity*" | head -1)
+        if [ -z "$editor_path" ]; then
+          echo "Could not find an installed Unity executable under $install_root" >&2
+          exit 1
+        fi
+        echo "path=$editor_path" >> "$GITHUB_OUTPUT"
