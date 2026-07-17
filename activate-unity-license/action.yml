@@ -69,7 +69,6 @@ runs:
       if: runner.os == 'macOS'
       shell: bash
       env:
-        UNITY_SERIAL: ${{ inputs.serial }}
         UNITY_EMAIL: ${{ inputs.username }}
         UNITY_PASSWORD: ${{ inputs.password }}
       run: |
@@ -81,11 +80,11 @@ runs:
         fi
         echo "Using licensing client: $licensing_client"
 
-        "$licensing_client" \
-          --activate-ulf \
+        timeout 120 "$licensing_client" \
+          --activate-all \
           --username "$UNITY_EMAIL" \
           --password "$UNITY_PASSWORD" \
-          --serial "$UNITY_SERIAL" \
-          --include-personal
+          --include-personal \
+          </dev/null
 
-        "$licensing_client" --showEntitlements
+        timeout 30 "$licensing_client" --showEntitlements </dev/null
