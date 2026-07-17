@@ -26,6 +26,11 @@ outputs:
 runs:
   using: composite
   steps:
+    - name: Install Rosetta 2 (macOS arm64)
+      if: runner.os == 'macOS' && runner.arch == 'ARM64'
+      shell: bash
+      run: softwareupdate --install-rosetta --agree-to-license
+
     - name: Install Unity CLI (Linux/macOS)
       if: runner.os != 'Windows'
       shell: bash
