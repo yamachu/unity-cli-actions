@@ -1,12 +1,20 @@
 name: Activate Unity Personal License
 description: >
-  Activates a Unity Personal license against Unity's servers for use in CI,
-  following game-ci/unity-builder's approach
-  (https://github.com/game-ci/unity-builder/blob/main/dist/platforms/ubuntu/steps/activate.sh):
-  activate live using the classic Editor flags `-serial -username -password`.
-  Requires a real human Unity ID (not a service account — those have no
-  Personal-license entitlement) and the Personal-tier serial extracted from an
-  existing .ulf.
+  Activates a Unity Personal license for use in CI.
+
+  On Linux/Windows this activates live using the classic Editor flags
+  `-serial -username -password`, following game-ci/unity-builder's approach
+  (https://github.com/game-ci/unity-builder/blob/main/dist/platforms/ubuntu/steps/activate.sh).
+
+  On macOS, that same Editor-IPC flow reliably times out waiting for
+  ULFActivationResponse (a known, unresolved issue — the Editor's legacy ULF
+  activation round-trip to the Unity Licensing Client appears broken on
+  ephemeral macOS runners; see game-ci/unity-builder#690, #572). Instead, this
+  invokes Unity's standalone `Unity.Licensing.Client` binary directly with
+  `--activate-ulf`, bypassing the Editor entirely, following the approach in
+  RageAgainstThePixel/unity-cli and buildalon/activate-unity-license, which
+  have confirmed-green CI activating Personal licenses on macOS-hosted
+  runners.
 
 inputs:
   editor-path:
@@ -26,7 +34,8 @@ runs:
   using: composite
   steps:
     # https://github.com/game-ci/unity-builder/blob/main/dist/platforms/ubuntu/steps/activate.sh
-    - name: Activate Unity Personal license
+    - name: Activate Unity Personal license (serial, Linux/Windows)
+      if: runner.os != 'macOS'
       shell: bash
       env:
         UNITY_SERIAL: ${{ inputs.serial }}
@@ -37,7 +46,7 @@ runs:
         attempt=1
         delay=15
         until "${{ inputs.editor-path }}" \
-          -logFile /dev/stdout \
+          -logFile - \
           -quit \
           -serial "$UNITY_SERIAL" \
           -username "$UNITY_EMAIL" \
@@ -54,3 +63,29 @@ runs:
           delay=$((delay * 2))
           attempt=$((attempt + 1))
         done
+
+    # https://github.com/RageAgainstThePixel/unity-cli/blob/main/src/license-client.ts
+    - name: Activate Unity Personal license (Unity.Licensing.Client, macOS)
+      if: runner.os == 'macOS'
+      shell: bash
+      env:
+        UNITY_EMAIL: ${{ inputs.username }}
+        UNITY_PASSWORD: ${{ inputs.password }}
+      run: |
+        editor_app_root=$(dirname "$(dirname "$(dirname "${{ inputs.editor-path }}")")")
+        licensing_client=$(find "$editor_app_root" -type f -name "Unity.Licensing.Client" 2>/dev/null | head -1)
+        if [ -z "$licensing_client" ]; then
+          echo "Could not find the Unity.Licensing.Client executable under $editor_app_root" >&2
+          exit 1
+        fi
+        echo "Using licensing client: $licensing_client"
+
+        perl -e 'alarm shift; exec @ARGV' 120 \
+          "$licensing_client" \
+          --activate-all \
+          --username "$UNITY_EMAIL" \
+          --password "$UNITY_PASSWORD" \
+          --include-personal \
+          </dev/null
+
+        perl -e 'alarm shift; exec @ARGV' 30 "$licensing_client" --showEntitlements </dev/null

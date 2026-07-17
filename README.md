@@ -39,20 +39,15 @@ instead of `install.sh`).
 > installer's behavior, this action's behavior can change without a version
 > bump on our end.
 
-> [!WARNING]
-> Windows support is untested on a real Windows runner. The Editor-locating
-> step relies on `unity install-path` to find where the CLI installed the
-> Editor, which should be platform-agnostic, but hasn't been verified in
-> practice yet. Please report an issue if it doesn't work.
-
 ### `activate-unity-license`
 
-Activates a Unity Personal license against Unity's servers for use in CI,
-following [game-ci/unity-builder](https://github.com/game-ci/unity-builder)'s
-Editor-flag approach (`-serial -username -password`).
+Activates a Unity Personal license for use in CI.
 
-Requires a real human Unity ID (service accounts have no Personal-license
-entitlement) and the Personal-tier serial extracted from an existing `.ulf`.
+On **Linux/Windows** this activates live against Unity's servers, following
+[game-ci/unity-builder](https://github.com/game-ci/unity-builder)'s
+Editor-flag approach (`-serial -username -password`). Requires a real human
+Unity ID (service accounts have no Personal-license entitlement) and the
+Personal-tier serial extracted from an existing `.ulf`.
 
 See: https://game.ci/docs/gitlab/activation/#2-extracting-the-serial-from-a-personal-license
 
@@ -65,6 +60,28 @@ See: https://game.ci/docs/gitlab/activation/#2-extracting-the-serial-from-a-pers
     username: ${{ secrets.UNITY_EMAIL }}
     password: ${{ secrets.UNITY_PASSWORD }}
 ```
+
+On **macOS**, that same Editor-IPC flow reliably times out waiting for
+`ULFActivationResponse` — a known, unresolved issue with the Editor's legacy
+ULF activation round-trip on ephemeral macOS runners (see
+[game-ci/unity-builder#690](https://github.com/game-ci/unity-builder/issues/690),
+[#572](https://github.com/game-ci/unity-builder/issues/572)). Placing a
+pre-activated `.ulf` file directly doesn't work around it either — `.ulf`
+files are bound to the activating machine's hardware ID, which never matches
+a fresh ephemeral runner ("Machine bindings don't match").
+
+Instead, on macOS this action activates via Unity's standalone
+`Unity.Licensing.Client` binary directly (bundled inside the installed
+Editor's `.app`), bypassing the Editor's IPC path entirely — the same
+approach used by
+[RageAgainstThePixel/unity-cli](https://github.com/RageAgainstThePixel/unity-cli)
+and [buildalon/activate-unity-license](https://github.com/buildalon/activate-unity-license),
+which have confirmed-green CI activating Personal licenses on macOS-hosted
+runners. Concretely, it runs `--activate-all --username --password
+--include-personal` (per the client's own `--help`, `--serial` combined with
+`--activate-ulf` is for PRO licenses only, so it's not used here). The
+`with:` inputs are the same as above, but `serial` is unused on macOS — only
+`editor-path`, `username`, and `password` matter there.
 
 ## Full example
 
