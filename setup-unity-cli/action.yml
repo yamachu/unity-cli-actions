@@ -72,7 +72,7 @@ runs:
         fi
         unity install-path </dev/null > /tmp/install_root.txt
         echo "install-path output:"
-        cat -A /tmp/install_root.txt
+        sed -n 'l' /tmp/install_root.txt
 
         editor_path=""
         while IFS= read -r install_root || [ -n "$install_root" ]; do
