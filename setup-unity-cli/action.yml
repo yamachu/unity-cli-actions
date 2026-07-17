@@ -42,8 +42,9 @@ runs:
       run: |
         $target = "${{ inputs.cli-version }}"
         if (-not $target) { $target = "latest" }
-        $installer = Invoke-RestMethod https://public-cdn.cloud.unity3d.com/hub/prod/cli/install.ps1
-        & ([scriptblock]::Create($installer)) -Target $target
+        $installerPath = Join-Path $env:RUNNER_TEMP "unity-cli-install.ps1"
+        Invoke-WebRequest -UseBasicParsing -Uri https://public-cdn.cloud.unity3d.com/hub/prod/cli/install.ps1 -OutFile $installerPath
+        & $installerPath -Target $target
 
     - name: Install Unity Editor
       shell: bash
