@@ -65,8 +65,14 @@ runs:
         else
           export PATH="$HOME/.unity/bin:$PATH"
         fi
-        install_root=$(unity install-path)
-        editor_path=$(find "$install_root" -maxdepth 3 -type f -name "Unity*" | head -1)
+        install_root=$(unity install-path </dev/null)
+        echo "install_root=$install_root"
+        if [ "$RUNNER_OS" = "macOS" ]; then
+          editor_path=$(find "$install_root" -maxdepth 4 -type d -name "Unity.app" -exec test -f "{}/Contents/MacOS/Unity" \; -print | head -1)
+          [ -n "$editor_path" ] && editor_path="$editor_path/Contents/MacOS/Unity"
+        else
+          editor_path=$(find "$install_root" -maxdepth 3 -type f -name "Unity*" | head -1)
+        fi
         if [ -z "$editor_path" ]; then
           echo "Could not find an installed Unity executable under $install_root" >&2
           exit 1
