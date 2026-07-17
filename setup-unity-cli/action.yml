@@ -70,16 +70,30 @@ runs:
         else
           export PATH="$HOME/.unity/bin:$PATH"
         fi
-        install_root=$(unity install-path </dev/null)
-        echo "install_root=$install_root"
-        if [ "$RUNNER_OS" = "macOS" ]; then
-          editor_path=$(find "$install_root" -maxdepth 4 -type d -name "Unity.app" -exec test -f "{}/Contents/MacOS/Unity" \; -print | head -1)
-          [ -n "$editor_path" ] && editor_path="$editor_path/Contents/MacOS/Unity"
-        else
-          editor_path=$(find "$install_root" -maxdepth 3 -type f -name "Unity*" | head -1)
-        fi
+        unity install-path </dev/null > /tmp/install_root.txt
+        echo "install-path output:"
+        cat -A /tmp/install_root.txt
+
+        editor_path=""
+        while IFS= read -r install_root || [ -n "$install_root" ]; do
+          [ -z "$install_root" ] && continue
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            found=$(find "$install_root" -maxdepth 4 -type d -name "Unity.app" -exec test -f "{}/Contents/MacOS/Unity" \; -print | head -1)
+            [ -n "$found" ] && found="$found/Contents/MacOS/Unity"
+          elif [ "$RUNNER_OS" = "Windows" ]; then
+            found=$(find "$install_root" -maxdepth 3 -type f -iname "Unity.exe" | head -1)
+          else
+            found=$(find "$install_root" -maxdepth 3 -type f -name "Unity*" | head -1)
+          fi
+          if [ -n "$found" ]; then
+            editor_path="$found"
+            break
+          fi
+        done < /tmp/install_root.txt
+
         if [ -z "$editor_path" ]; then
-          echo "Could not find an installed Unity executable under $install_root" >&2
+          echo "Could not find an installed Unity executable under any of:" >&2
+          cat /tmp/install_root.txt >&2
           exit 1
         fi
         echo "path=$editor_path" >> "$GITHUB_OUTPUT"
