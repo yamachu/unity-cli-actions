@@ -39,20 +39,15 @@ instead of `install.sh`).
 > installer's behavior, this action's behavior can change without a version
 > bump on our end.
 
-> [!WARNING]
-> Windows support is untested on a real Windows runner. The Editor-locating
-> step relies on `unity install-path` to find where the CLI installed the
-> Editor, which should be platform-agnostic, but hasn't been verified in
-> practice yet. Please report an issue if it doesn't work.
-
 ### `activate-unity-license`
 
-Activates a Unity Personal license against Unity's servers for use in CI,
-following [game-ci/unity-builder](https://github.com/game-ci/unity-builder)'s
-Editor-flag approach (`-serial -username -password`).
+Activates a Unity Personal license for use in CI.
 
-Requires a real human Unity ID (service accounts have no Personal-license
-entitlement) and the Personal-tier serial extracted from an existing `.ulf`.
+On **Linux/Windows** this activates live against Unity's servers, following
+[game-ci/unity-builder](https://github.com/game-ci/unity-builder)'s
+Editor-flag approach (`-serial -username -password`). Requires a real human
+Unity ID (service accounts have no Personal-license entitlement) and the
+Personal-tier serial extracted from an existing `.ulf`.
 
 See: https://game.ci/docs/gitlab/activation/#2-extracting-the-serial-from-a-personal-license
 
@@ -65,6 +60,28 @@ See: https://game.ci/docs/gitlab/activation/#2-extracting-the-serial-from-a-pers
     username: ${{ secrets.UNITY_EMAIL }}
     password: ${{ secrets.UNITY_PASSWORD }}
 ```
+
+On **macOS**, live serial activation over the Unity Licensing Client's IPC
+channel is unreliable in CI — the entitlement license activates fine, but the
+subsequent ULF activation request reliably times out after 30s. Instead,
+provide a pre-activated `.ulf` license file (base64-encoded) via
+`license-ulf`, which is decoded and placed directly at
+`/Library/Application Support/Unity/Unity_lic.ulf`, skipping the live
+activation round-trip entirely:
+
+```yaml
+- name: Activate Unity Personal license
+  uses: yamachu/unity-cli-actions/activate-unity-license@v1
+  with:
+    editor-path: ${{ steps.unity.outputs.editor-path }}
+    license-ulf: ${{ secrets.UNITY_LICENSE_ULF }}
+```
+
+To obtain the `.ulf` once: activate Unity manually on any machine (e.g. via
+`unity -createManualActivationFile`, submit the resulting `.alf` at
+https://license.unity3d.com, and download the returned `.ulf`), then
+`base64 -i Unity_lic.ulf | pbcopy` and store it as the `UNITY_LICENSE_ULF`
+secret.
 
 ## Full example
 
