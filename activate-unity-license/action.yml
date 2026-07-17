@@ -37,7 +37,7 @@ runs:
         attempt=1
         delay=15
         until "${{ inputs.editor-path }}" \
-          -logFile /dev/stdout \
+          -logFile - \
           -quit \
           -serial "$UNITY_SERIAL" \
           -username "$UNITY_EMAIL" \
