@@ -71,13 +71,17 @@ files are bound to the activating machine's hardware ID, which never matches
 a fresh ephemeral runner ("Machine bindings don't match").
 
 Instead, on macOS this action activates via Unity's standalone
-`Unity.Licensing.Client` binary directly (`--activate-ulf`), bypassing the
-Editor's IPC path entirely — the same approach used by
+`Unity.Licensing.Client` binary directly (bundled inside the installed
+Editor's `.app`), bypassing the Editor's IPC path entirely — the same
+approach used by
 [RageAgainstThePixel/unity-cli](https://github.com/RageAgainstThePixel/unity-cli)
 and [buildalon/activate-unity-license](https://github.com/buildalon/activate-unity-license),
 which have confirmed-green CI activating Personal licenses on macOS-hosted
-runners. The `with:` inputs are the same as above — no macOS-specific
-configuration needed.
+runners. Concretely, it runs `--activate-all --username --password
+--include-personal` (per the client's own `--help`, `--serial` combined with
+`--activate-ulf` is for PRO licenses only, so it's not used here). The
+`with:` inputs are the same as above, but `serial` is unused on macOS — only
+`editor-path`, `username`, and `password` matter there.
 
 ## Full example
 
