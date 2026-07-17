@@ -1,36 +1,34 @@
 name: Activate Unity Personal License
 description: >
-  Activates a Unity Personal license for use in CI. On Linux/Windows this
-  activates live using the classic Editor flags `-serial -username -password`,
-  following game-ci/unity-builder's approach
+  Activates a Unity Personal license for use in CI.
+
+  On Linux/Windows this activates live using the classic Editor flags
+  `-serial -username -password`, following game-ci/unity-builder's approach
   (https://github.com/game-ci/unity-builder/blob/main/dist/platforms/ubuntu/steps/activate.sh).
-  On macOS, live serial activation over the Unity Licensing Client IPC channel
-  is unreliable in CI (the ULF activation request reliably times out after
-  entitlement activation succeeds), so instead a pre-activated `.ulf` license
-  file is decoded from `license-ulf` and placed directly where Unity expects
-  it, skipping the live activation round-trip entirely.
+
+  On macOS, that same Editor-IPC flow reliably times out waiting for
+  ULFActivationResponse (a known, unresolved issue — the Editor's legacy ULF
+  activation round-trip to the Unity Licensing Client appears broken on
+  ephemeral macOS runners; see game-ci/unity-builder#690, #572). Instead, this
+  invokes Unity's standalone `Unity.Licensing.Client` binary directly with
+  `--activate-ulf`, bypassing the Editor entirely, following the approach in
+  RageAgainstThePixel/unity-cli and buildalon/activate-unity-license, which
+  have confirmed-green CI activating Personal licenses on macOS-hosted
+  runners.
 
 inputs:
   editor-path:
     description: "Absolute path to the Unity executable to activate"
     required: true
   serial:
-    description: "Unity Personal-tier serial (used on Linux/Windows)"
-    required: false
+    description: "Unity Personal-tier serial"
+    required: true
   username:
-    description: "Unity ID email (used on Linux/Windows)"
-    required: false
+    description: "Unity ID email"
+    required: true
   password:
-    description: "Unity ID password (used on Linux/Windows)"
-    required: false
-  license-ulf:
-    description: >
-      Base64-encoded contents of an already-activated Unity_lic.ulf file
-      (used on macOS). Obtain this once by activating Unity manually
-      (e.g. `unity -createManualActivationFile`, then activate the resulting
-      .alf on https://license.unity3d.com and use the returned .ulf), then
-      `base64 -i Unity_lic.ulf | pbcopy` and store it as a secret.
-    required: false
+    description: "Unity ID password"
+    required: true
 
 runs:
   using: composite
@@ -44,10 +42,6 @@ runs:
         UNITY_EMAIL: ${{ inputs.username }}
         UNITY_PASSWORD: ${{ inputs.password }}
       run: |
-        if [ -z "$UNITY_SERIAL" ] || [ -z "$UNITY_EMAIL" ] || [ -z "$UNITY_PASSWORD" ]; then
-          echo "serial, username, and password inputs are required on $RUNNER_OS" >&2
-          exit 1
-        fi
         mkdir -p /tmp/blank-project/Assets
         attempt=1
         delay=15
@@ -70,16 +64,27 @@ runs:
           attempt=$((attempt + 1))
         done
 
-    - name: Activate Unity Personal license (ulf placement, macOS)
+    # https://github.com/RageAgainstThePixel/unity-cli/blob/main/src/license-client.ts
+    - name: Activate Unity Personal license (Unity.Licensing.Client, macOS)
       if: runner.os == 'macOS'
       shell: bash
       env:
-        UNITY_LICENSE_ULF: ${{ inputs.license-ulf }}
+        UNITY_SERIAL: ${{ inputs.serial }}
+        UNITY_EMAIL: ${{ inputs.username }}
+        UNITY_PASSWORD: ${{ inputs.password }}
       run: |
-        if [ -z "$UNITY_LICENSE_ULF" ]; then
-          echo "license-ulf input is required on macOS" >&2
+        licensing_client=$(find "$HOME/Library/Application Support/UnityHub" /Applications/"Unity Hub.app" -type f -name "Unity.Licensing.Client" 2>/dev/null | head -1)
+        if [ -z "$licensing_client" ]; then
+          echo "Could not find the Unity.Licensing.Client executable" >&2
           exit 1
         fi
-        sudo mkdir -p "/Library/Application Support/Unity"
-        echo "$UNITY_LICENSE_ULF" | base64 --decode | sudo tee "/Library/Application Support/Unity/Unity_lic.ulf" > /dev/null
-        sudo chmod 666 "/Library/Application Support/Unity/Unity_lic.ulf"
+        echo "Using licensing client: $licensing_client"
+
+        "$licensing_client" \
+          --activate-ulf \
+          --username "$UNITY_EMAIL" \
+          --password "$UNITY_PASSWORD" \
+          --serial "$UNITY_SERIAL" \
+          --include-personal
+
+        "$licensing_client" --showEntitlements

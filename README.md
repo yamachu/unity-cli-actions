@@ -61,27 +61,23 @@ See: https://game.ci/docs/gitlab/activation/#2-extracting-the-serial-from-a-pers
     password: ${{ secrets.UNITY_PASSWORD }}
 ```
 
-On **macOS**, live serial activation over the Unity Licensing Client's IPC
-channel is unreliable in CI — the entitlement license activates fine, but the
-subsequent ULF activation request reliably times out after 30s. Instead,
-provide a pre-activated `.ulf` license file (base64-encoded) via
-`license-ulf`, which is decoded and placed directly at
-`/Library/Application Support/Unity/Unity_lic.ulf`, skipping the live
-activation round-trip entirely:
+On **macOS**, that same Editor-IPC flow reliably times out waiting for
+`ULFActivationResponse` — a known, unresolved issue with the Editor's legacy
+ULF activation round-trip on ephemeral macOS runners (see
+[game-ci/unity-builder#690](https://github.com/game-ci/unity-builder/issues/690),
+[#572](https://github.com/game-ci/unity-builder/issues/572)). Placing a
+pre-activated `.ulf` file directly doesn't work around it either — `.ulf`
+files are bound to the activating machine's hardware ID, which never matches
+a fresh ephemeral runner ("Machine bindings don't match").
 
-```yaml
-- name: Activate Unity Personal license
-  uses: yamachu/unity-cli-actions/activate-unity-license@v1
-  with:
-    editor-path: ${{ steps.unity.outputs.editor-path }}
-    license-ulf: ${{ secrets.UNITY_LICENSE_ULF }}
-```
-
-To obtain the `.ulf` once: activate Unity manually on any machine (e.g. via
-`unity -createManualActivationFile`, submit the resulting `.alf` at
-https://license.unity3d.com, and download the returned `.ulf`), then
-`base64 -i Unity_lic.ulf | pbcopy` and store it as the `UNITY_LICENSE_ULF`
-secret.
+Instead, on macOS this action activates via Unity's standalone
+`Unity.Licensing.Client` binary directly (`--activate-ulf`), bypassing the
+Editor's IPC path entirely — the same approach used by
+[RageAgainstThePixel/unity-cli](https://github.com/RageAgainstThePixel/unity-cli)
+and [buildalon/activate-unity-license](https://github.com/buildalon/activate-unity-license),
+which have confirmed-green CI activating Personal licenses on macOS-hosted
+runners. The `with:` inputs are the same as above — no macOS-specific
+configuration needed.
 
 ## Full example
 
