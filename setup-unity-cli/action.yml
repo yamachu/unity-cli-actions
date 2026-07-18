@@ -17,11 +17,18 @@ inputs:
     description: "Unity CLI release channel: alpha, beta, or empty for stable"
     required: false
     default: "beta"
+  cache:
+    description: "Cache the installed Unity Editor across runs (keyed by OS, arch, and unity-version)"
+    required: false
+    default: "false"
 
 outputs:
   editor-path:
     description: "Absolute path to the installed Unity executable"
     value: ${{ steps.locate.outputs.path }}
+  cache-hit:
+    description: "Whether the Unity Editor was restored from cache"
+    value: ${{ steps.cache.outputs.cache-hit }}
 
 runs:
   using: composite
@@ -46,7 +53,32 @@ runs:
         Invoke-WebRequest -UseBasicParsing -Uri https://public-cdn.cloud.unity3d.com/hub/prod/cli/install.ps1 -OutFile $installerPath
         & $installerPath -Target $target
 
+    - name: Determine Unity install roots
+      id: install-roots
+      shell: bash
+      run: |
+        if [ "$RUNNER_OS" = "Windows" ]; then
+          export PATH="$(cygpath "$LOCALAPPDATA")/Unity/bin:$PATH"
+        else
+          export PATH="$HOME/.unity/bin:$PATH"
+        fi
+        unity install-path </dev/null > /tmp/install_roots.txt
+        {
+          echo "paths<<UNITY_INSTALL_ROOTS_EOF"
+          cat /tmp/install_roots.txt
+          echo "UNITY_INSTALL_ROOTS_EOF"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Restore Unity Editor cache
+      id: cache
+      if: inputs.cache == 'true'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ steps.install-roots.outputs.paths }}
+        key: unity-editor-${{ runner.os }}-${{ runner.arch }}-${{ inputs.unity-version }}
+
     - name: Install Unity Editor
+      if: inputs.cache != 'true' || steps.cache.outputs.cache-hit != 'true'
       shell: bash
       run: |
         if [ "$RUNNER_OS" = "Windows" ]; then
@@ -59,13 +91,10 @@ runs:
     - name: Locate installed Unity executable
       id: locate
       shell: bash
+      env:
+        INSTALL_ROOTS: ${{ steps.install-roots.outputs.paths }}
       run: |
-        if [ "$RUNNER_OS" = "Windows" ]; then
-          export PATH="$(cygpath "$LOCALAPPDATA")/Unity/bin:$PATH"
-        else
-          export PATH="$HOME/.unity/bin:$PATH"
-        fi
-        unity install-path </dev/null > /tmp/install_root.txt
+        echo "$INSTALL_ROOTS" > /tmp/install_root.txt
         echo "install-path output:"
         sed -n 'l' /tmp/install_root.txt
 
