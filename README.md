@@ -18,9 +18,24 @@ locates the resulting Unity executable.
     unity-version: "2022.3.22f1" # optional, default: lts
     cli-version: "" # optional, default: latest from manifest
     cli-channel: "beta" # optional, default: beta. alpha, beta, or empty for stable
+    cache: "false" # optional, default: false. caches the installed Editor across runs
 ```
 
-Output: `editor-path` — absolute path to the installed Unity executable.
+Outputs:
+
+- `editor-path` — absolute path to the installed Unity executable.
+- `cache-hit` — whether the Unity Editor was restored from cache.
+
+> [!NOTE]
+> The Editor is cached (via `actions/cache`) keyed on OS, architecture, and
+> `unity-version`, skipping `unity install` entirely on a hit. Installing an
+> Editor spends most of its time unpacking/postprocessing rather than
+> downloading, so a cache hit is meaningfully faster than a cold install
+> (actual timings vary by runner/OS). Opt in with `cache: "true"` — it
+> defaults to off since it changes this action's behavior (skips
+> `unity install` on a hit) and consumes the repo-wide 10GB GitHub Actions
+> cache limit, shared across any other caches in the repo and across
+> multiple Unity versions here.
 
 > [!NOTE]
 > The Unity CLI is still under development, and the stable channel's manifest
