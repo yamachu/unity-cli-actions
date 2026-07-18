@@ -32,6 +32,18 @@ Runs on Linux, macOS, and Windows runners (Windows uses Unity's `install.ps1`
 instead of `install.sh`).
 
 > [!WARNING]
+> If you need an **Intel macOS** runner (`os: osx-x64` / GitHub's `*-intel`
+> labels), use `macos-15-intel`, not `macos-latest` or `macos-26-intel`. On
+> `macos-26-intel` the Editor's very first asset import hangs forever right
+> after kicking off every built-in module import — no completion ever
+> follows. It reproduces even with a bare empty project, isn't FMOD/audio
+> related (no FMOD errors appear, and disabling audio via
+> `ProjectSettings/AudioManager.asset`'s `m_DisableAudio: 1` makes no
+> difference), and looks structurally like the same class of Editor↔helper-
+> process IPC issue as the ULF activation hang described below, just hitting
+> the asset-import-worker path instead of license activation.
+
+> [!WARNING]
 > This action installs the Unity CLI by piping Unity's installer script
 > straight from their CDN (`curl ... | bash` on Linux/macOS, `irm ... | iex`-
 > style on Windows). Pinning `cli-version` controls which Unity CLI build gets
